@@ -27,8 +27,12 @@ const (
 var (
 	flListenPort = flag.Int("port", 5222, "listen port")
 	flServer     = flag.String("server", "<server:port>", "target server:port")
-	flKeyPath    = flag.String("key", "", "path to TLS certificate key")
-	flCertPath   = flag.String("cert", "", "path to TLS certificate")
+
+	flKeyPath  = flag.String("key", "", "path to TLS certificate key")
+	flCertPath = flag.String("cert", "", "path to TLS certificate")
+
+	flReplaceLocal  = flag.String("replace-local", "", "")
+	flReplaceRemote = flag.String("replace-remote", "", "")
 )
 
 func main() {
@@ -82,6 +86,10 @@ func proxy(client, server io.ReadWriter, idx int, untilTLS bool) error {
 	clientNext, clientResults := startReader(client)
 	serverNext, serverResults := startReader(server)
 
+	rLocal := []byte(*flReplaceLocal)
+	rRemote := []byte(*flReplaceRemote)
+	replace := len(rLocal) > 0 && len(rRemote) > 0
+
 	for {
 		select {
 		case result := <-clientResults:
@@ -91,6 +99,9 @@ func proxy(client, server io.ReadWriter, idx int, untilTLS bool) error {
 			}
 
 			buf := result.buf[:result.n]
+			if replace {
+				buf = bytes.Replace(buf, rLocal, rRemote, -1)
+			}
 			fmt.Printf("C%d: %#q\n", idx, buf)
 
 			_, err = server.Write(buf)
@@ -114,6 +125,9 @@ func proxy(client, server io.ReadWriter, idx int, untilTLS bool) error {
 
 			buf := result.buf[:result.n]
 			fmt.Printf("S%d: %#q\n", idx, buf)
+			if replace {
+				buf = bytes.Replace(buf, rRemote, rLocal, -1)
+			}
 
 			_, err = client.Write(buf)
 			if err != nil {

@@ -2,8 +2,7 @@ xmpp-logging-proxy is an XMPP intermediary (aka XMPP MITM) that acts like a serv
 
 Install: `go get github.com/orivej/xmpp-logging-proxy`
 
-Prepare: `openssl req -x509 -nodes -newkey rsa:4096 -keyout key.pem -out cert.pem -subj /`
+Given a client with JID `login@server`, XMPP server at `server.host` and proxy at `proxy.host`, you may either:
 
-Run: `xmpp-logging-proxy -key key.pem -cert cert.pem -server target.server:5222`
-
-Configure your client to connect to your server and port instead of the target server.
+1. Make client connect to `proxy.host` instead of `server.host` (via client options, `/etc/hosts`, or DNS).  Run proxy as `xmpp-logging-proxy -server target.server:5222`.
+2. Make client use JID `login@proxy.host`, and let `xmpp-logging-proxy` replace `proxy.host` with `server` in outgoing traffic and replace `server` with `proxy.host` in incoming traffic.  Run proxy as `xmpp-logging-proxy -server target.server:5222 -replace-local proxy.host -replace-remote server`.  The proxy will log the traffic from the perspective of the server (`proxy.host` will not occur in the log).
