@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 
 	"github.com/orivej/e"
 	"github.com/pkg/errors"
@@ -102,7 +103,7 @@ func proxy(client, server io.ReadWriter, idx int, untilTLS bool) error {
 			if replace {
 				buf = bytes.Replace(buf, rLocal, rRemote, -1)
 			}
-			fmt.Printf("C%d: %#q\n", idx, buf)
+			fmt.Printf("C%d|%s|\n", idx, escape(string(buf)))
 
 			_, err = server.Write(buf)
 			if err != nil {
@@ -124,7 +125,7 @@ func proxy(client, server io.ReadWriter, idx int, untilTLS bool) error {
 			}
 
 			buf := result.buf[:result.n]
-			fmt.Printf("S%d: %#q\n", idx, buf)
+			fmt.Printf("S%d|%s|\n", idx, escape(string(buf)))
 			if replace {
 				buf = bytes.Replace(buf, rRemote, rLocal, -1)
 			}
@@ -159,4 +160,10 @@ func startReader(reader io.Reader) (chan<- bool, chan ReadResult) {
 		}
 	}()
 	return readNext, results
+}
+
+func escape(s string) string {
+	s = strings.Replace(s, "\\", "\\\\", -1)
+	s = strings.Replace(s, "\n", "\\n", -1)
+	return s
 }
