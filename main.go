@@ -27,15 +27,19 @@ const (
 var (
 	flListenPort = flag.Int("port", 5222, "listen port")
 	flServer     = flag.String("server", "<server:port>", "target server:port")
-	flKeyPath    = flag.String("key", "<key>", "path to TLS certificate key")
-	flCertPath   = flag.String("cert", "<cert>", "path to TLS certificate")
+	flKeyPath    = flag.String("key", "", "path to TLS certificate key")
+	flCertPath   = flag.String("cert", "", "path to TLS certificate")
 )
 
 func main() {
 	flag.Parse()
 
-	certificate, err := tls.LoadX509KeyPair(*flCertPath, *flKeyPath)
-	e.Exit(errors.Wrap(err, "can not load TLS key pair"))
+	certificate, err := tls.X509KeyPair([]byte(localhostCert), []byte(localhostKey))
+	e.Exit(err)
+	if len(*flCertPath) > 0 {
+		certificate, err = tls.LoadX509KeyPair(*flCertPath, *flKeyPath)
+		e.Exit(errors.Wrap(err, "can not load TLS key pair"))
+	}
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", *flListenPort))
 	e.Exit(err)
