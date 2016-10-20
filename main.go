@@ -34,10 +34,10 @@ const (
 )
 
 var (
-	flListenPort = flag.Int("port", 5222, "listen port")
-	flServer     = flag.String("server", "<server:port>", "target server:port")
-	flLogDir     = flag.String("log-dir", "", "directory for session logs")
-	flCensor     = flag.Bool("censor", false, "censor credentials from the log")
+	flListenAddress = flag.String("listen", ":5222", "listen address")
+	flServer        = flag.String("server", "<server:port>", "target server:port")
+	flLogDir        = flag.String("log-dir", "", "directory for session logs")
+	flCensor        = flag.Bool("censor", false, "censor credentials from the log")
 
 	flKeyPath  = flag.String("key", "", "path to TLS certificate key")
 	flCertPath = flag.String("cert", "", "path to TLS certificate")
@@ -56,7 +56,7 @@ func main() {
 		e.Exit(errors.Wrap(err, "can not load TLS key pair"))
 	}
 
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", *flListenPort))
+	listener, err := net.Listen("tcp", *flListenAddress)
 	e.Exit(err)
 
 	for idx := nextIdx(); true; idx++ {
