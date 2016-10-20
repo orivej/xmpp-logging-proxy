@@ -26,15 +26,18 @@ type ReadResult struct {
 type Log func(side, data string)
 
 const (
-	bufSize         = 4000
-	clientTLSMarker = "<starttls"
-	serverTLSMarker = "<proceed"
+	bufSize               = 4000
+	clientTLSMarker       = "<starttls"
+	serverTLSMarker       = "<proceed"
+	clientAuthMarker      = "<auth"
+	clientAuthReplacement = "<auth>CENSORED</auth>"
 )
 
 var (
 	flListenPort = flag.Int("port", 5222, "listen port")
 	flServer     = flag.String("server", "<server:port>", "target server:port")
 	flLogDir     = flag.String("log-dir", "", "directory for session logs")
+	flCensor     = flag.Bool("censor", false, "censor credentials from the log")
 
 	flKeyPath  = flag.String("key", "", "path to TLS certificate key")
 	flCertPath = flag.String("cert", "", "path to TLS certificate")
@@ -123,7 +126,7 @@ func serve(client net.Conn, pr Log, certificate tls.Certificate) error {
 	tlsServer := tls.Client(server, &tls.Config{
 		InsecureSkipVerify: true,
 	})
-	pr("X", "eavesdropping TLS")
+	// pr("X", "establishing TLS")
 	err = proxy(tlsClient, tlsServer, pr, false)
 	return errors.Wrap(err, "TLS session terminated")
 }
@@ -148,7 +151,11 @@ func proxy(client, server io.ReadWriter, pr Log, untilTLS bool) error {
 			if replace {
 				buf = bytes.Replace(buf, rLocal, rRemote, -1)
 			}
-			pr("?", escape(string(buf)))
+			if *flCensor && bytes.Contains(buf, []byte(clientAuthMarker)) {
+				pr("?", clientAuthReplacement)
+			} else {
+				pr("?", escape(string(buf)))
+			}
 
 			_, err = server.Write(buf)
 			if err != nil {
@@ -156,7 +163,7 @@ func proxy(client, server io.ReadWriter, pr Log, untilTLS bool) error {
 			}
 
 			if untilTLS && bytes.Contains(buf, []byte(clientTLSMarker)) {
-				pr("X", "client requests TLS")
+				// pr("X", "client requests TLS")
 				clientNext <- false
 				continue
 			}
@@ -181,7 +188,7 @@ func proxy(client, server io.ReadWriter, pr Log, untilTLS bool) error {
 			}
 
 			if untilTLS && bytes.Contains(buf, []byte(serverTLSMarker)) {
-				pr("X", "server approves TLS")
+				// pr("X", "server approves TLS")
 				serverNext <- false
 				return nil
 			}
