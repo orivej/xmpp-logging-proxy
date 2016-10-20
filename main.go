@@ -81,6 +81,7 @@ func main() {
 
 		go func() {
 			defer e.CloseOrPrint(client)
+			defer e.CloseOrPrint(f)
 			err := serve(client, pr, certificate)
 			pr("X", err.Error())
 		}()
@@ -96,9 +97,11 @@ func nextIdx() int {
 	e.Exit(err)
 
 	idx := 1
+	var n int
 	for _, file := range files {
-		if file.Name() == logName(idx) {
-			idx++
+		_, err := fmt.Sscanf(file.Name(), "%d.log", &n)
+		if err == nil && idx <= n {
+			idx = n + 1
 		}
 	}
 	return idx
@@ -135,6 +138,7 @@ func proxy(client, server io.ReadWriter, pr Log, untilTLS bool) error {
 	clientNext, clientResults := startReader(client)
 	serverNext, serverResults := startReader(server)
 
+	censor := *flCensor
 	rLocal := []byte(*flReplaceLocal)
 	rRemote := []byte(*flReplaceRemote)
 	replace := len(rLocal) > 0 && len(rRemote) > 0
@@ -151,7 +155,8 @@ func proxy(client, server io.ReadWriter, pr Log, untilTLS bool) error {
 			if replace {
 				buf = bytes.Replace(buf, rLocal, rRemote, -1)
 			}
-			if *flCensor && bytes.Contains(buf, []byte(clientAuthMarker)) {
+			if censor && bytes.Contains(buf, []byte(clientAuthMarker)) {
+				censor = false
 				pr("?", clientAuthReplacement)
 			} else {
 				pr("?", escape(string(buf)))
