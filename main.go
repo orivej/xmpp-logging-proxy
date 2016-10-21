@@ -81,7 +81,9 @@ func main() {
 
 		go func() {
 			defer e.CloseOrPrint(client)
-			defer e.CloseOrPrint(f)
+			if f != nil {
+				defer e.CloseOrPrint(f)
+			}
 			err := serve(client, pr, certificate)
 			pr("X", err.Error())
 		}()
