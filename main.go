@@ -39,6 +39,8 @@ var (
 	flLogDir        = flag.String("log-dir", "", "directory for session logs")
 	flCensor        = flag.Bool("censor", false, "censor credentials from the log")
 
+	flBlackhole = flag.Duration("blackhole-after", 0, "stop relaying (for testing)")
+
 	flKeyPath  = flag.String("key", "", "path to TLS certificate key")
 	flCertPath = flag.String("cert", "", "path to TLS certificate")
 
@@ -145,6 +147,18 @@ func proxy(client, server io.ReadWriter, pr Log, untilTLS bool) error {
 	rRemote := []byte(*flReplaceRemote)
 	replace := len(rLocal) > 0 && len(rRemote) > 0
 
+	relay := true
+	checkDeadline := func() {}
+	if *flBlackhole != 0 {
+		deadline := time.Now().Add(*flBlackhole)
+		checkDeadline = func() {
+			if relay && time.Now().After(deadline) {
+				relay = false
+				pr("X", "blackhole")
+			}
+		}
+	}
+
 	for {
 		select {
 		case result := <-clientResults:
@@ -157,6 +171,7 @@ func proxy(client, server io.ReadWriter, pr Log, untilTLS bool) error {
 			if replace {
 				buf = bytes.Replace(buf, rLocal, rRemote, -1)
 			}
+			checkDeadline()
 			if censor && bytes.Contains(buf, []byte(clientAuthMarker)) {
 				censor = false
 				pr("?", clientAuthReplacement)
@@ -164,9 +179,11 @@ func proxy(client, server io.ReadWriter, pr Log, untilTLS bool) error {
 				pr("?", escape(string(buf)))
 			}
 
-			_, err = server.Write(buf)
-			if err != nil {
-				return errors.Wrap(err, "failed to write to server")
+			if relay {
+				_, err = server.Write(buf)
+				if err != nil {
+					return errors.Wrap(err, "failed to write to server")
+				}
 			}
 
 			if untilTLS && bytes.Contains(buf, []byte(clientTLSMarker)) {
@@ -184,14 +201,17 @@ func proxy(client, server io.ReadWriter, pr Log, untilTLS bool) error {
 			}
 
 			buf := result.buf[:result.n]
+			checkDeadline()
 			pr("!", escape(string(buf)))
 			if replace {
 				buf = bytes.Replace(buf, rRemote, rLocal, -1)
 			}
 
-			_, err = client.Write(buf)
-			if err != nil {
-				return errors.Wrap(err, "failed to write to client")
+			if relay {
+				_, err = client.Write(buf)
+				if err != nil {
+					return errors.Wrap(err, "failed to write to client")
+				}
 			}
 
 			if untilTLS && bytes.Contains(buf, []byte(serverTLSMarker)) {
